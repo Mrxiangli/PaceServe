@@ -1,0 +1,23 @@
+1. Request multiple nodes
+2. ssh into each nodes
+3. choose one node as head node and issue the following command:
+    "ray start --head --port=6379"  to create head node
+4. on the rest nodes, issue 
+    "ray start --address='172.18.36.105:6379'" 
+    replace the ip address with the ip address from previous step to add each node into the cluster
+
+Set up ray dashboard:
+
+
+1. set up prometheu and grafina port:
+    RAY_GRAFANA_HOST=http://172.18.36.102:3000
+    RAY_PROMETHEUS_HOST=http://172.18.36.102:9090
+    change the ip address used to node head
+launch grafana and prometheus (need to install grafana first)
+2. ray metrics launch-prometheus
+3. ./bin/grafana-server --config /tmp/ray/session_latest/metrics/grafana/grafana.ini web
+
+# forward the port from gilbreth node to local machine using the follwoing
+ssh -fNT -L localhost:9999:localhost:8265 -J li2068@gilbreth.rcac.purdue.edu li2068@gilbreth-k043.rcac.purdue.edu
+
+need t forward both dashboard(8265) and grafana(3000)

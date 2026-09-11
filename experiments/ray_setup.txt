@@ -1,0 +1,10 @@
+1. Request multiple nodes
+
+2. ssh into each nodes
+
+3. choose one node as head node and issue the following command:
+    "PYTHONNOUSERSITE=1 ray start --head --port=6379"  to create head node
+    
+4. on the rest nodes, issue 
+    "PYTHONNOUSERSITE=1 ray start --address='172.18.36.107:6379'" 
+    replace the ip address with the ip address from previous step to add each node into the cluster

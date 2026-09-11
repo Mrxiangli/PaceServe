@@ -1,0 +1,36 @@
+{
+    "_comment": "Generated from timestamped session folders; selection does not imply a completed run.",
+    "_data_dir": "/scratch/gilbreth/li2068/middleware-artifact/Pace/exp_result/main_data",
+    "llama_longbench_qps": {
+        "main": "20260909_074709",
+        "overrides": []
+    },
+    "llama_longbench_slo": {
+        "main": "20260909_104818",
+        "overrides": []
+    },
+    "llama_sharegpt_qps": {
+        "main": "20260909_135432",
+        "overrides": []
+    },
+    "llama_sharegpt_slo": {
+        "main": "20260909_161905",
+        "overrides": []
+    },
+    "mistral_longbench_qps": {
+        "main": "20260909_201126",
+        "overrides": []
+    },
+    "mistral_longbench_slo": {
+        "main": "20260909_230953",
+        "overrides": []
+    },
+    "mistral_sharegpt_qps": {
+        "main": "20260910_021157",
+        "overrides": []
+    },
+    "mistral_sharegpt_slo": {
+        "main": "20260910_043409",
+        "overrides": []
+    }
+}
