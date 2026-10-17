@@ -13,6 +13,27 @@ from paceserve.core.datatypes.request_output import PromptResponse
 logger = logging.getLogger(__name__)
 
 
+@ray.remote(num_cpus=0)
+def validate_model_files(model_path):
+    import os
+    import json
+    if not os.path.isabs(model_path):
+        return
+    required = ["config.json", "tokenizer_config.json"]
+    index = os.path.join(model_path, "model.safetensors.index.json")
+    if os.path.isfile(index):
+        with open(index) as f:
+            required.extend(set(json.load(f)["weight_map"].values()))
+    missing = [name for name in required if not os.path.isfile(os.path.join(model_path, name))]
+    if not any(os.path.isfile(os.path.join(model_path, name)) for name in ("tokenizer.json", "tokenizer.model")):
+        missing.append("tokenizer.json or tokenizer.model")
+    from pathlib import Path
+    if not any(Path(model_path).glob("*.safetensors")) and not any(Path(model_path).glob("pytorch_model*.bin")):
+        missing.append("model weights")
+    if missing:
+        raise RuntimeError(f"Model files missing on {get_ip()}: {model_path}: {missing}")
+
+
 class Launcher:
 
     def __init__(self, config: BenchmarkConfig) -> None:
@@ -22,6 +43,16 @@ class Launcher:
         ray.init(ignore_reinit_error=True)
 
         self._validate_cluster_resources()
+        # Check every GPU node before allocating long-lived actors. A missing
+        # model on a remote node must fail promptly, not hang during setup.
+        checks = [
+            validate_model_files.options(resources={f"node:{node['NodeManagerAddress']}": 0.001}).remote(
+                self.config.model_config.model
+            )
+            for node in ray.nodes()
+            if node["Alive"] and node["Resources"].get("GPU", 0) > 0
+        ]
+        ray.get(checks, timeout=60)
         self.replica_signals = []
         self.replicas = self._create_replicas()
 

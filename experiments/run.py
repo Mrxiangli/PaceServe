@@ -10,6 +10,7 @@ import re
 import operator
 import importlib
 import shlex
+import signal
 from pathlib import Path
 
 
@@ -95,10 +96,50 @@ def _fmt_elapsed(seconds):
         return f"{m}m {s:02d}s"
     return f"{s}s"
 
+def run_benchmark(cmd_str, log_file, timeout):
+    # A timeout must terminate the shell AND its Python descendants. Ray then
+    # releases the actors owned by the terminated driver, including remote ones.
+    process = subprocess.Popen(
+        cmd_str, shell=True, stdout=log_file, stderr=subprocess.STDOUT,
+        start_new_session=True,
+    )
+    def terminate_runner(signum, frame):
+        raise SystemExit(128 + signum)
+
+    previous_handler = signal.signal(signal.SIGTERM, terminate_runner)
+    try:
+        returncode = process.wait(timeout=timeout)
+        if returncode:
+            raise subprocess.CalledProcessError(returncode, cmd_str)
+    finally:
+        try:
+            os.killpg(process.pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+        else:
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline:
+                process.poll()
+                try:
+                    os.killpg(process.pid, 0)
+                except ProcessLookupError:
+                    break
+                time.sleep(0.1)
+            else:
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+        process.wait()
+        signal.signal(signal.SIGTERM, previous_handler)
+
+
 def execute_resiliently(cmd_str, output_dir, run_idx, total_runs):
     log_file_path = output_dir / "execution.log"
 
     for attempt in range(1, MAX_RETRIES + 1):
+        if attempt > 1 and log_file_path.exists():
+            shutil.copy2(log_file_path, output_dir / f"execution.attempt_{attempt - 1}.log")
         run_start = time.time()
         try:
             with open(log_file_path, "w") as log_file:
@@ -107,14 +148,7 @@ def execute_resiliently(cmd_str, output_dir, run_idx, total_runs):
                 log_file.flush()
 
                 print(f"  [{run_idx}/{total_runs}] Attempt {attempt}/{MAX_RETRIES} running...")
-                subprocess.run(
-                    cmd_str,
-                    shell=True,
-                    check=True,
-                    stdout=log_file,
-                    stderr=subprocess.STDOUT,
-                    timeout=TIMEOUT_SECONDS
-                )
+                run_benchmark(cmd_str, log_file, TIMEOUT_SECONDS)
 
             elapsed = time.time() - run_start
             print(f"  -> ✅ [SUCCESS]  ⏱  {_fmt_elapsed(elapsed)}")
